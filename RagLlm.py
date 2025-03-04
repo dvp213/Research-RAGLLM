@@ -13,7 +13,7 @@ class ResponseModel(BaseModel):
 
 
 def chat_with_llm(message_list, output_format):
-    response = ollama.chat(model='', messages=message_list, format=output_format)
+    response = ollama.chat(model='deepseek-r1:8b', messages=message_list, format=output_format)
     return response.get("message", {}).get("content", "")
 
 
