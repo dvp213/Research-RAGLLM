@@ -5,6 +5,13 @@ import numpy as np
 import ollama
 from pydantic import BaseModel, ValidationError
 from typing import List
+import os
+
+# Optionally import PyPDF2 in case a PDF file is used
+try:
+    import PyPDF2
+except ImportError:
+    print("PyPDF2 is not installed. Run 'pip install PyPDF2' if you need to extract text from PDFs.")
 
 
 class ResponseModel(BaseModel):
@@ -60,14 +67,30 @@ known_classes = ["cobra", "commonkrait", "russellsviper", "sawscaledviper", "cey
 
 
 def init_():
-    global docs
-    global faiss_index
+    global docs, faiss_index
 
-    with open("data.txt", 'r', encoding="UTF-8") as file:  # Replace "data.txt" with your pdf text file if needed.
-        text = file.read()
+    # If data.txt exists, read from it; otherwise, try reading from a PDF
+    if os.path.exists("data.txt"):
+        with open("data.txt", 'r', encoding="UTF-8") as file:
+            text = file.read()
+    else:
+        # Fallback to reading from a PDF file named "data.pdf"
+        pdf_file_path = "data.pdf"  # Replace with your actual PDF file path if needed.
+        text = ""
+        if os.path.exists(pdf_file_path):
+            with open(pdf_file_path, "rb") as file:
+                pdf_reader = PyPDF2.PdfReader(file)
+                for page in pdf_reader.pages:
+                    page_text = page.extract_text()
+                    if page_text:
+                        text += page_text + "\n"
+        else:
+            raise FileNotFoundError("Neither data.txt nor data.pdf was found.")
 
+    # Create a Document with the extracted text
     docs.append(Document(text=text))
 
+    # Generate embeddings for each document in docs
     embeddings = np.array([Settings.embed_model._embed(doc.text) for doc in docs])
     dim = embeddings.shape[1]
     index = faiss.IndexFlatL2(dim)
@@ -107,3 +130,7 @@ def response_(user_question):
             "description": "Cannot respond",
             "similar": []
         }
+
+
+# Initialize the FAISS index using the extracted text
+init_()
