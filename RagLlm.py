@@ -27,40 +27,43 @@ Settings.embed_model = HuggingFaceEmbedding(
 docs = []
 faiss_index = None
 
+# Prompt for specific snake queries (e.g., "cobra")
 PROMPT_SYS_INITIAL_RESPONSE_1 = """
-    You're a helpful assistant who knows 
+    You're a helpful assistant who knows detailed information about venomous snakes in Sri Lanka.
 
     Here is some context related to the user question:
     -----------------------------------------
     {context_str}
     -----------------------------------------
-    Considering the above information and answer the user question.
-
+    Considering the above information, answer the user question with details about the specific snake and suggest related species.
 
     Please keep in mind the following guidelines:
-        - Don't
+        - Provide detailed biological, ecological, and behavioral insights.
 """
 
+# Prompt for general queries (e.g., "Who are the venomous snakes in Sri Lanka?")
 PROMPT_SYS_INITIAL_RESPONSE_2 = """
-    You're a helpful assistant who knows 
+    You're a helpful assistant who knows comprehensive information about venomous snakes in Sri Lanka.
 
     Here is some context related to the user question:
     -----------------------------------------
     {context_str}
     -----------------------------------------
-    Considering the above information and answer the user question.
-
+    Considering the above information, answer the user question by listing the names and details of all five venomous snake species.
 
     Please keep in mind the following guidelines:
-        - Don't
+        - Provide an overview including key details and safety guidelines.
 """
+
+# Define a list of known snake class names (in lowercase for matching)
+known_classes = ["cobra", "commonkrait", "russellsviper", "sawscaledviper", "ceylonkrait"]
 
 
 def init_():
     global docs
     global faiss_index
 
-    with open(".txt", 'r', encoding="UTF-8") as file:
+    with open("data.txt", 'r', encoding="UTF-8") as file:  # Replace "data.txt" with your pdf text file if needed.
         text = file.read()
 
     docs.append(Document(text=text))
@@ -76,13 +79,17 @@ def init_():
 
 
 def response_(user_question):
+    # Compute embedding for the user question
     question_embedding = Settings.embed_model._embed(user_question)
-
     D, I = faiss_index.search(np.array([question_embedding]), k=K)
     top_docs = [docs[i] for i in I[0]]
     context_str = " ".join([doc.text for doc in top_docs])
 
-    system_prompt = PROMPT_SYS_INITIAL_RESPONSE_2.format(context_str=context_str)
+    # Decide which prompt to use based on the user question
+    if user_question.lower() in known_classes:
+        system_prompt = PROMPT_SYS_INITIAL_RESPONSE_1.format(context_str=context_str)
+    else:
+        system_prompt = PROMPT_SYS_INITIAL_RESPONSE_2.format(context_str=context_str)
 
     message_list = [
         {'role': 'system', 'content': system_prompt},
@@ -98,5 +105,5 @@ def response_(user_question):
         print("Validation failed:", e)
         return {
             "description": "Cannot respond",
-            "similar": "Cannot respond"
+            "similar": []
         }
